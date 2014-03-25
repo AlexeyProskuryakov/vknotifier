@@ -3,13 +3,12 @@ from datetime import datetime, timedelta
 from threading import Thread
 import time
 
-from src.api.vk import VK_API
-from src.core.database import DataBaseHandler
-from src.core.message_processing import ParseException, is_reject_message
-from src.core.notifications import NotificationsHandler
-from src.properties import logger, notifications_types_represent
-from src.core.message_processing import process_message
-
+from api.vk import VK_API
+from core.database import DataBaseHandler
+from core.message_processing import ParseException, is_reject_message
+from core.notifications import NotificationsHandler
+from properties import *
+from core.message_processing import process_message
 
 __author__ = '4ikist'
 
@@ -40,23 +39,22 @@ class Provider(Thread):
                             try:
                                 date, text, notification_type = self.process(message['text'], message['date'])
                             except ParseException:
-                                self.api.send_message(message['from'], u'Хорошо, не буду напоминать')
+                                self.api.send_message(message['from'], will_not_notify)
                                 continue
 
                     if not date and not text and not notification_type:
                         date, text, notification_type = self.process(message['text'], message['date'])
-                    send_text = u"Напоминаю тебе: %s" % text
-                    result_message = u"Я напомню тебе про: %s в [%s] %s" % (
-                        text, date.isoformat(sep='|'), notifications_types_represent[notification_type])
+                    send_text = notify_string % text
+                    result_message = will_notify % (text,
+                                                    date.isoformat(sep='|'),
+                                                    notifications_types_represent[notification_type])
                     self.api.send_message(message['from'], result_message)
                     notification_id = self.notify_handler.add_notification(when=date, whom=message['from'],
                                                                            text=send_text,
                                                                            notification_type=notification_type)
                     self.sent_results[message['from']] = notification_id
                 except ParseException as e:
-                    result = self.api.send_message(message['from'], u'Я не могу распознать то что ты написал(а) :( '
-                                                                    u'Попробуй написать по-другому [%s]' % message[
-                                                                        'text'])
+                    result = self.api.send_message(message['from'], not_recognised_message % message['text'])
                     log.error('send that message not recognised to: %s with result: %s' % (message['from'], result))
                     self.notify_handler.add_error(message['text'], message['from'])
             time.sleep(5)
