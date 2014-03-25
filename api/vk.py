@@ -5,7 +5,7 @@ import urlparse
 from requests import Session
 from lxml import html
 
-from src.properties import *
+from properties import *
 
 __author__ = '4ikist'
 

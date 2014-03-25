@@ -2,7 +2,7 @@
 import calendar
 import datetime
 import unittest
-from src.core.message_processing import process_message, ParseException
+from core.message_processing import process_message, ParseException
 
 __author__ = '4ikist'
 

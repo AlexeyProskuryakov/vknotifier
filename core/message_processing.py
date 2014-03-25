@@ -2,7 +2,7 @@
 import calendar
 import re
 import datetime
-from src.properties import notifications_types
+from properties import notifications_types
 
 __author__ = '4ikist'
 months = [el.lower() for el in

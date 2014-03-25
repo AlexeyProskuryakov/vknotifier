@@ -1,11 +1,11 @@
 import pymongo
-from src.properties import mongo_adress
+from properties import mongo_address
 
 __author__ = '4ikist'
 
 
 class DataBaseHandler(object):
-    def __init__(self, host=None, port=None, address=mongo_adress):
+    def __init__(self, host=None, port=None, address=mongo_address):
         if host and port:
             self.db = pymongo.MongoClient(host, port)['notifier']
         elif address:
