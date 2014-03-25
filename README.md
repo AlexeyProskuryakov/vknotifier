@@ -11,9 +11,11 @@ At first:
 ==========
 git clone https://github.com/AlexeyProskuryakov/vknotifier.git
 
-At next: 
+At second: 
 ==========
-create file with name 
+1. pip install -r requirements.txt
+
+2. Create file with name 
 properties.py like this with login credentials in vk and mongo connection address:
 
 ```python
@@ -68,3 +70,6 @@ will_notify = u"Я напомню тебе про: %s в [%s] %s" #with text, da
 notify_string = u"Напоминаю тебе: %s" #with notification text
 
 ```
+START
+==========
+python core/engine.py
