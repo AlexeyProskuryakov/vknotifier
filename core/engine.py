@@ -1,116 +1,131 @@
-# coding=utf-8
+# coding:utf-8
 from datetime import datetime, timedelta
 from threading import Thread
-import time
+from time import sleep
 
+from database import DataBaseHandler
 from api.vk import VK_API
-from core.database import DataBaseHandler
-from core.message_processing import ParseException, is_reject_message
-from core.notifications import NotificationsHandler
-from properties import *
-from core.message_processing import process_message
+from after_retrievers import after_timedelta
+from date_time_retrievers import retrieve_datetime
+from text_retrievers import retrieve_notification_message, retrieve_type, retrieve_yes
+import properties
+from core import types
 
-__author__ = '4ikist'
-
-log = logger.getChild('engine')
-notification_time_window = 10
+api = VK_API()
 
 
-class Provider(Thread):
-    def __init__(self, notify_handler, api, process_function, is_reject_function):
-        super(Provider, self).__init__()
-        self.notify_handler = notify_handler
-        self.process = process_function
-        self.is_reject = is_reject_function
+def recognise_notification_query(text):
+    date_time = retrieve_datetime(text)
+    if not date_time:
+        after_dt = after_timedelta(text)
+        if not after_dt:
+            return None
+        date_time = datetime.now() + after_dt
+    type = retrieve_type(text)
+    text = retrieve_notification_message(text)
+    return {'when': date_time, 'type': type, 'message': text}
+
+
+def form_notification_confirmation(notification):
+    whens = []
+    if notification['type'] == 1:
+        whens.append(notification['when'])
+    elif notification['type'] == 2:
+        whens.append(notification['when'] - types[2])
+        whens.append(notification['when'])
+    elif notification['type'] == 3:
+        whens.append(notification['when'])
+        whens.append(notification['when'] - types[2])
+        whens.append(notification['when'] - types[3])
+
+    return properties.will_notify % (
+        notification['message'], u'\n'.join([d.strftime("%d.%m.%Y %H:%M") for d in whens]))
+
+
+def normalize_notification_type(notification):
+    if datetime.now() > (notification['when'] - types[notification['type']]):
+        notification['type'] -= 1
+        return normalize_notification_type(notification)
+    return notification
+
+def form_when_on_timestmap(when, timestamp):
+    shift = (datetime.now() - datetime.fromtimestamp(timestamp)).total_seconds()
+    if abs(shift) > 3600:
+        return when + timedelta(seconds=shift)
+    return when
+
+
+class TalkHandler(Thread):
+    def __init__(self):
+        super(TalkHandler, self).__init__()
         self.api = api
-        self.sent_results = {}
+        self.db = DataBaseHandler()
 
     def run(self):
-        while 1:
-            self.api.add_followers_to_friends()
-            messages = self.api.get_new_messages()
-            for message in messages:
-                try:
-                    date, text, notification_type = None, None, None
-                    if message['from'] in self.sent_results:
-                        if is_reject_message(message['text']):
-                            self.notify_handler.delete_notification(self.sent_results[message['from']])
-                            del self.sent_results[message['from']]
-                            try:
-                                date, text, notification_type = self.process(message['text'], message['date'])
-                            except ParseException:
-                                self.api.send_message(message['from'], will_not_notify)
-                                continue
+        self.loop()
 
-                    if not date and not text and not notification_type:
-                        date, text, notification_type = self.process(message['text'], message['date'])
-                    send_text = notify_string % text
-                    result_message = will_notify % (text,
-                                                    date.isoformat(sep='|'),
-                                                    notifications_types_represent[notification_type])
-                    self.api.send_message(message['from'], result_message)
-                    notification_id = self.notify_handler.add_notification(when=date, whom=message['from'],
-                                                                           text=send_text,
-                                                                           notification_type=notification_type)
-                    self.sent_results[message['from']] = notification_id
-                except ParseException as e:
-                    result = self.api.send_message(message['from'], not_recognised_message % message['text'])
-                    log.error('send that message not recognised to: %s with result: %s' % (message['from'], result))
-                    self.notify_handler.add_error(message['text'], message['from'])
-            time.sleep(5)
+    def loop(self):
+        talked_users = {}
+        for message in self.api.get_messages():
+            print datetime.fromtimestamp(message['timestamp'])
+            user_id = message['from']
+            #wait confirmation of notification
+            if user_id in talked_users:
+                if retrieve_yes(message['text']):
+                    self.api.send_message(user_id, u':)')
+                    self.db.will_notify(**talked_users.get(user_id))
+                else:
+                    self.api.send_message(user_id, properties.will_not_notify)
+
+                del talked_users[user_id]
+            else: #processing text for notification
+                notification = recognise_notification_query(message['text'])
+                if notification:
+                    notification = normalize_notification_type(notification)
+                    notification['when'] = form_when_on_timestmap(notification['when'], message['timestamp'])
+                    notification['whom'] = user_id
+                    talked_users[user_id] = notification
+                    self.api.send_message(user_id, form_notification_confirmation(notification))
+                else:
+                    self.api.send_message(user_id, properties.not_recognised_message % message['text'])
 
 
-class Notifier(Thread):
-    def __init__(self, notify_handler, api):
-        super(Notifier, self).__init__()
-        self.notify_handler = notify_handler
+def is_all_notified(notifications):
+    for notification in notifications:
+        if not notification.get('done'):
+            return False
+    return True
+
+
+class Notificator(Thread):
+    def __init__(self):
+        super(Notificator, self).__init__()
         self.api = api
+        self.db = DataBaseHandler()
 
     def run(self):
-        is_first = True
-        while 1:
-            if is_first:
-                notifications = self.notify_handler.get_all_notifications()
-                start = 0
-                end = datetime.now()
-            else:
-                end = datetime.now()
-                start = datetime.now() - timedelta(seconds=notification_time_window)
-                notifications = self.notify_handler.get_notifications(start, end)
+        self.loop()
 
-            for notification in notifications:
-                sender = NotificationSender(notification, self.notify_handler, self.api)
-                sender.start()
-            time.sleep(notification_time_window)
-            is_first = False
+    def loop(self):
+        while True:
+            result = self.db.get_to_notify()
+            while 1:
+                for notification in result:
+                    if datetime.now() > notification['when'] and 'done' not in notification:
+                        self.api.send_message(notification['whom'], properties.notify_string % (notification['message']))
+                        self.db.set_done(notification['_id'])
+                        notification['done'] = True
 
+                if is_all_notified(result):
+                    break
 
-class NotificationSender(Thread):
-    def __init__(self, notification, notification_engine, api):
-        super(NotificationSender, self).__init__()
-        self.notification = notification
-        self.api = api
-        self.notification_engine = notification_engine
-
-    def run(self):
-        while 1:
-            if self.notification['when'] <= datetime.now():
-                result = self.api.send_message(self.notification['whom'], self.notification['text'])
-                self.notification_engine.set_notification_done(self.notification['_id'])
-                break
-            else:
-                time.sleep(5)
+                sleep(1)
 
 
 if __name__ == '__main__':
-    api = VK_API()
-    db = DataBaseHandler()
-    notification_handler = NotificationsHandler(db)
+    # get_user_utc(10130611)
+    TalkHandler().start()
+    Notificator().start()
 
-    provider = Provider(notification_handler, api, process_message, is_reject_message)
-    provider.start()
 
-    notifier = Notifier(notification_handler, api)
-    notifier.start()
 
-    provider.join()

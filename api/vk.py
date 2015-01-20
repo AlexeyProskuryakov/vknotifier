@@ -23,9 +23,18 @@ class VK_API():
         self.base_url = 'https://api.vk.com/method/'
         self.__get_access_token()
 
+    def __form_lp_server_address(self, ts=None):
+        if ts is None:
+            self.lp_server_params = self.get('messages.getLongPollServer')
+
+        self.lp_server_connection = 'http://%s?act=a_check&key=%s&ts=%s&wait=25&mode=0' % (
+            self.lp_server_params.get('server'),
+            self.lp_server_params.get('key'),
+            self.lp_server_params.get('ts') if ts is None else ts)
+
     def __get_access_token(self):
         if (not hasattr(self, 'access_expires') and not hasattr(self, 'last_auth')) or (
-                self.last_auth - datetime.now()).total_seconds() > self.access_expires:
+                    self.last_auth - datetime.now()).total_seconds() > self.access_expires:
             auth = self.__auth__()
             self.access_token = auth['access_token']
             self.user_id = auth['user_id']
@@ -45,15 +54,15 @@ class VK_API():
         form_params['email'] = vk_login
         form_params['pass'] = vk_pass
         form_url = doc.xpath('//form')[0].attrib.get('action')
-        #process second page
+        # process second page
         result = self.session.post(form_url, form_params)
         doc = html.document_fromstring(result.content)
-        #if already login
+        # if already login
         if 'OAuth Blank' not in doc.xpath('//title')[0].text:
             submit_url = doc.xpath('//form')[0].attrib.get('action')
             result = self.session.post(submit_url, cookies=result.cookies)
 
-        #retrieving access token from url
+        # retrieving access token from url
         parsed_url = urlparse.urlparse(result.url)
         if 'error' in parsed_url.query:
             log.error('error in authenticate \n%s' % parsed_url.query)
@@ -69,38 +78,41 @@ class VK_API():
         result = self.session.get('%s%s' % (self.base_url, method_name), params=params)
         result_object = json.loads(result.content)
         if 'error' in result_object:
+            if result_object['error']['error_code'] == 14:
+                kwargs['captcha_key'] = raw_input(
+                    "please input what you see at [%s]" % result_object['error']['captcha_img'])
+                kwargs['captcha_sid'] = result_object['error']['captcha_sid']
+                return self.get(method_name, **kwargs)
             raise APIException(result_object)
         return result_object['response']
 
-    def get_new_messages(self):
-        batch_count = 100
-        params = {'out': 0, 'time_offset': 0, 'preview_length': 0, 'offset': 0}
-        last_unread = None
-        last_unread_position = None
-        unread_messages = []
-        unread_users = defaultdict(set)
-        #filling unread messages
-        while True:
-            params['count'] = batch_count
-            result = self.get('messages.get', **params)
-            for i, message in enumerate(result[1:]):
-                if message['read_state'] == 0:
-                    unread_messages.append({'from': message['uid'], 'text': message['body'], 'date':message['date']})
-                    last_unread = message['mid']
-                    last_unread_position = i
-                    unread_users[message['uid']].add(message['mid'])
-            if last_unread_position < batch_count - 1:
-                break
-            else:
-                params['last_message_id'] = last_unread
+    def mark_as_read(self, messages):
+        messages_str = ','.join([str(m) for m in messages])
+        result = self.get('messages.markAsRead', **{'message_ids': messages_str})
+        if result != 1:
+            log.error('can not mark as read messages %s' % messages_str)
 
-        #sending that read
-        for user, messages in unread_users.iteritems():
-            messages_str = ','.join([str(m) for m in messages])
-            result = self.get('messages.markAsRead', **{'message.ids': messages_str, 'user_id': user})
-            if result != 1:
-                log.error('can not send that messages %s\n for user %s is not read' % (messages_str, str(user)))
-        return unread_messages
+    def get_messages(self):
+        self.__form_lp_server_address()
+        while True:
+            result = self.session.get(self.lp_server_connection)
+            result = json.loads(result.content)
+            if result.get('failed') == 2:
+                self.__form_lp_server_address()
+            else:
+                self.__form_lp_server_address(ts=result.get('ts'))
+            read_messages = []
+            for update in result['updates']:
+                if update[0] == 4 and update[2] in (17, 33, 49) and update[2] != 3:
+                    message_id = update[1]
+                    from_id = update[3]
+                    text = update[-1]
+                    tstamp = update[4]
+                    read_messages.append(message_id)
+                    yield {'from': from_id, 'text': text.lower(), 'timestamp': tstamp}
+
+            if read_messages:
+                self.mark_as_read(read_messages)
 
     def send_message(self, user_id, text):
         params = {'user_id': user_id, 'message': text}
@@ -123,5 +135,6 @@ class VK_API():
 
 if __name__ == '__main__':
     vk = VK_API()
-    print vk.get_new_messages()
-    print vk.add_followers_to_friends()
+    for el in vk.get_messages():
+        print el
+
