@@ -48,6 +48,7 @@ def normalize_notification_type(notification):
         return normalize_notification_type(notification)
     return notification
 
+
 def form_when_on_timestmap(when, timestamp):
     shift = (datetime.now() - datetime.fromtimestamp(timestamp)).total_seconds()
     if abs(shift) > 3600:
@@ -69,16 +70,17 @@ class TalkHandler(Thread):
         for message in self.api.get_messages():
             print datetime.fromtimestamp(message['timestamp'])
             user_id = message['from']
-            #wait confirmation of notification
+            # wait confirmation of notification
             if user_id in talked_users:
                 if retrieve_yes(message['text']):
                     self.api.send_message(user_id, u':)')
                     self.db.will_notify(**talked_users.get(user_id))
                 else:
                     self.api.send_message(user_id, properties.will_not_notify)
+                    self.db.persist_error(user_id, message['text'], reject_confirm=True)
 
                 del talked_users[user_id]
-            else: #processing text for notification
+            else:  # processing text for notification
                 notification = recognise_notification_query(message['text'])
                 if notification:
                     notification = normalize_notification_type(notification)
@@ -87,6 +89,7 @@ class TalkHandler(Thread):
                     talked_users[user_id] = notification
                     self.api.send_message(user_id, form_notification_confirmation(notification))
                 else:
+                    self.db.persist_error(user_id, message['text'])
                     self.api.send_message(user_id, properties.not_recognised_message % message['text'])
 
 
@@ -112,7 +115,8 @@ class Notificator(Thread):
             while 1:
                 for notification in result:
                     if datetime.now() > notification['when'] and 'done' not in notification:
-                        self.api.send_message(notification['whom'], properties.notify_string % (notification['message']))
+                        self.api.send_message(notification['whom'],
+                                              properties.notify_string % (notification['message']))
                         self.db.set_done(notification['_id'])
                         notification['done'] = True
 

@@ -14,10 +14,10 @@ class DataBaseHandler(object):
             self.db = pymongo.MongoClient(host=address)[db_name]
 
         self.notifications = self.db['notifications']
-        self.utc = self.db['utc']
+        self.error_messages = self.db['error_messages']
 
-        if len(self.utc.index_information())<=1:
-            self.utc.ensure_index([('user', pymongo.ASCENDING),('city', pymongo.ASCENDING)])
+        if len(self.error_messages.index_information())<=1:
+            self.error_messages.ensure_index([('user', pymongo.ASCENDING),('time', pymongo.ASCENDING)])
 
         if len(self.notifications.index_information()) <= 1:
             self.notifications.ensure_index(
@@ -26,22 +26,10 @@ class DataBaseHandler(object):
         if truncate:
             self.notifications.remove({}, multi=True)
 
-    def get_utc(self, user=None, city=None):
-        query = {}
-        if user:
-            query['user'] = user
-        elif city:
-            query['city'] = city
-        return self.utc.find_one(query)
-
-    def set_utc(self, user, city, utc):
-        if self.utc.find_one({'user':user}):
-            self.utc.update({'user':user}, {'$set':{'utc':utc}})
-        else:
-            self.utc.save({'user':user,'utc':utc})
-
-        if not self.utc.find_one({'city':city}):
-            self.utc.save({'city':city, 'utc':utc})
+    def persist_error(self, user, message, **kwargs):
+        to_save = {'user':user, 'message':message, 'time':datetime.now()}
+        to_save.update(kwargs)
+        self.error_messages.save(to_save)
 
     def set_done(self, notification_id):
         notification = self.notifications.find_one({'_id': notification_id})
@@ -69,7 +57,6 @@ class DataBaseHandler(object):
         return result
 
     def will_notify(self, when, whom, type, message):
-
         element = {'when': when, 'whom': whom, 'type': type, 'message': message}
         result = self.notifications.save(element)
         return result
