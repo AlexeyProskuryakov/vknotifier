@@ -68,3 +68,7 @@ will_notify = u"Я напомню тебе про: %s в [%s] %s" #with text, da
 notify_string = u"Напоминаю тебе: %s" #with notification text
 
 ```
+START
+==========
+python core/engine.py
+
