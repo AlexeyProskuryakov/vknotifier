@@ -70,8 +70,8 @@ class TalkHandler(Thread):
         talked_users = {}
         for message in self.api.get_messages():
             try:
-                log.info('receive message: %s' % message)
                 user_id = message['from']
+                log.info('receive message: %s\nfrom %s' % (message['text'], user_id))
                 # wait confirmation of notification
                 if user_id in talked_users:
                     if retrieve_yes(message['text']):
