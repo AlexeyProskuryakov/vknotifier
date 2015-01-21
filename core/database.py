@@ -4,6 +4,7 @@ from core import types
 
 __author__ = '4ikist'
 
+time_step = 5
 
 class DataBaseHandler(object):
     def __init__(self, host=None, port=None, address=None, db_name=None, truncate=False):
@@ -53,7 +54,7 @@ class DataBaseHandler(object):
         result = []
         for type, td in types.iteritems():
             crsr = self.notifications.find(
-                {'when': {'$gte': now + td, '$lte': now + td + timedelta(minutes=1)}, 'type': type})
+                {'when': {'$gte': now + td, '$lte': now + td + timedelta(seconds=time_step)}, 'type': type})
             result.extend([self._transform_date(el, td) for el in crsr])
         return result
 

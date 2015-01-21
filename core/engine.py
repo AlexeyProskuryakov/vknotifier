@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from threading import Thread
 from time import sleep
 
-from database import DataBaseHandler
+from database import DataBaseHandler, time_step
 from api import get_api
 from after_retrievers import after_timedelta
 from date_time_retrievers import retrieve_datetime
@@ -12,6 +12,7 @@ import properties
 from core import types
 
 
+log = properties.logger.getChild('engine')
 
 
 def recognise_notification_query(text):
@@ -68,29 +69,36 @@ class TalkHandler(Thread):
     def loop(self):
         talked_users = {}
         for message in self.api.get_messages():
-            print datetime.fromtimestamp(message['timestamp'])
-            user_id = message['from']
-            # wait confirmation of notification
-            if user_id in talked_users:
-                if retrieve_yes(message['text']):
-                    self.api.send_message(user_id, u':)')
-                    self.db.will_notify(**talked_users.get(user_id))
-                else:
-                    self.api.send_message(user_id, properties.will_not_notify)
-                    self.db.persist_error(user_id, message['text'], reject_confirm=True)
+            try:
+                log.info('receive message: %s' % message)
+                user_id = message['from']
+                # wait confirmation of notification
+                if user_id in talked_users:
+                    if retrieve_yes(message['text']):
+                        log.info('user %s say yes' % user_id)
+                        self.api.send_message(user_id, u':)')
+                        self.db.will_notify(**talked_users.get(user_id))
+                    else:
+                        log.info('user %s say not' % user_id)
+                        self.api.send_message(user_id, properties.will_not_notify)
+                        self.db.persist_error(user_id, message['text'], reject_confirm=True)
 
-                del talked_users[user_id]
-            else:  # processing text for notification
-                notification = recognise_notification_query(message['text'])
-                if notification:
-                    notification = normalize_notification_type(notification)
-                    notification['when'] = form_when_on_timestmap(notification['when'], message['timestamp'])
-                    notification['whom'] = user_id
-                    talked_users[user_id] = notification
-                    self.api.send_message(user_id, form_notification_confirmation(notification))
-                else:
-                    self.db.persist_error(user_id, message['text'])
-                    self.api.send_message(user_id, properties.not_recognised_message % message['text'])
+                    del talked_users[user_id]
+                else:  # processing text for notification
+                    notification = recognise_notification_query(message['text'])
+                    if notification:
+                        notification = normalize_notification_type(notification)
+                        notification['when'] = form_when_on_timestmap(notification['when'], message['timestamp'])
+                        notification['whom'] = user_id
+                        talked_users[user_id] = notification
+                        log.info('from user %s imply notification %s' % (user_id, notification))
+                        self.api.send_message(user_id, form_notification_confirmation(notification))
+                    else:
+                        log.info('from user %s notification not implied' % (user_id))
+                        self.api.send_message(user_id, properties.not_recognised_message % message['text'])
+                        self.db.persist_error(user_id, message['text'])
+            except Exception as e:
+                log.exception(e)
 
 
 def is_all_notified(notifications):
@@ -100,9 +108,9 @@ def is_all_notified(notifications):
     return True
 
 
-class Notificator(Thread):
+class NotificatonIniter(Thread):
     def __init__(self, api_credentials, db_credentials):
-        super(Notificator, self).__init__()
+        super(NotificatonIniter, self).__init__()
         self.api = get_api(**api_credentials)
         self.db = DataBaseHandler(**db_credentials)
 
@@ -111,19 +119,31 @@ class Notificator(Thread):
 
     def loop(self):
         while True:
-            result = self.db.get_to_notify()
-            while 1:
-                for notification in result:
-                    if datetime.now() > notification['when'] and 'done' not in notification:
-                        self.api.send_message(notification['whom'],
-                                              properties.notify_string % (notification['message']))
-                        self.db.set_done(notification['_id'])
-                        notification['done'] = True
-
-                if is_all_notified(result):
-                    break
-
-                sleep(1)
+            try:
+                result = self.db.get_to_notify()
+                if result:
+                    Notificator(self.api, self.db, result).start()
+                sleep(time_step)
+            except Exception as e:
+                log.exception(e)
 
 
+class Notificator(Thread):
+    def __init__(self, api, db, notifications):
+        super(Notificator, self).__init__()
+        self.api = api
+        self.db = db
+        self.notifications = notifications
 
+    def run(self):
+        while 1:
+            for notification in self.notifications:
+                if datetime.now() > notification['when'] and 'done' not in notification:
+                    self.api.send_message(notification['whom'],
+                                          properties.notify_string % (
+                                          notification['message'] or u'... блин, ты не указал о чем напоминать :('))
+                    self.db.set_done(notification['_id'])
+                    notification['done'] = True
+
+            if is_all_notified(self.notifications):
+                break

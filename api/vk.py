@@ -45,7 +45,7 @@ class VK_API():
         return self.access_token
 
     def __auth__(self, vk_login, vk_pass):
-        log.info('authenticate')
+        log.info('auth...')
         result = self.session.get('https://oauth.vk.com/authorize', params=vk_access_credentials)
         doc = html.document_fromstring(result.content)
         inputs = doc.xpath('//input')
@@ -71,6 +71,7 @@ class VK_API():
 
         fragment = parsed_url.fragment
         access_token = dict([el.split('=') for el in fragment.split('&')])
+        log.info('auth was successful')
         return access_token
 
 
@@ -95,6 +96,7 @@ class VK_API():
 
     def get_messages(self):
         self.__form_lp_server_address()
+        log.info('will retrieve messages')
         while True:
             result = self.session.get(self.lp_server_connection)
             result = json.loads(result.content)
@@ -104,7 +106,7 @@ class VK_API():
                 self.__form_lp_server_address(ts=result.get('ts'))
             read_messages = []
             for update in result['updates']:
-                if update[0] == 4 and update[2] in (17, 33, 49) and update[2] != 3:
+                if update[0] == 4 and update[2] in (1, 17, 33, 49) and update[2] != 3:
                     message_id = update[1]
                     from_id = update[3]
                     text = update[-1]
@@ -132,10 +134,3 @@ class VK_API():
             result = self.get('friends.add', **{'user_id': el})
             if result != 2:
                 log.error('error in add to friend for user: %s' % el)
-
-
-if __name__ == '__main__':
-    vk = VK_API()
-    for el in vk.get_messages():
-        print el
-

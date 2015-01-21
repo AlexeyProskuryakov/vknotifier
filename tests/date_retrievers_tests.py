@@ -82,6 +82,9 @@ class DateRetrieversTest(unittest.TestCase):
         assert after_timedelta(u"через 2 года") == datetime.timedelta(seconds=2*3600*24*365)
         assert after_timedelta(u"через 5 лет") == datetime.timedelta(seconds=5*3600*24*365)
 
+        assert after_timedelta(u"через час") == datetime.timedelta(seconds=60*60)
+        assert after_timedelta(u"через полчаса") == datetime.timedelta(seconds=60*30)
+
     def test_time_retrievers(self):
         assert time_retriever(u"в 12:20") == datetime.time(12,20)
         assert time_retriever(u"в 1:20") == datetime.time(1,20)
