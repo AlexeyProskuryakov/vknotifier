@@ -27,17 +27,17 @@ def recognise_notification_query(text):
     return {'when': date_time, 'type': type, 'message': text}
 
 
-def form_notification_confirmation(notification):
+def form_notification_confirmation(notification, when):
     whens = []
     if notification['type'] == 1:
-        whens.append(notification['when'])
+        whens.append(when)
     elif notification['type'] == 2:
-        whens.append(notification['when'] - types[2])
-        whens.append(notification['when'])
+        whens.append(when - types[2])
+        whens.append(when)
     elif notification['type'] == 3:
-        whens.append(notification['when'])
-        whens.append(notification['when'] - types[2])
-        whens.append(notification['when'] - types[3])
+        whens.append(when)
+        whens.append(when - types[2])
+        whens.append(when - types[3])
 
     return properties.will_notify % (
         notification['message'], u'\n'.join([d.strftime("%d.%m.%Y %H:%M") for d in whens]))
@@ -88,11 +88,12 @@ class TalkHandler(Thread):
                     notification = recognise_notification_query(message['text'])
                     if notification:
                         notification = normalize_notification_type(notification)
+                        when_to_show = notification['when'] #когда должна быть
                         notification['when'] = form_when_on_timestmap(notification['when'], message['timestamp'])
                         notification['whom'] = user_id
                         talked_users[user_id] = notification
                         log.info('from user %s imply notification %s' % (user_id, notification))
-                        self.api.send_message(user_id, form_notification_confirmation(notification))
+                        self.api.send_message(user_id, form_notification_confirmation(notification, when_to_show))
                     else:
                         log.info('from user %s notification not implied' % (user_id))
                         self.api.send_message(user_id, properties.not_recognised_message % message['text'])
@@ -141,7 +142,7 @@ class Notificator(Thread):
                 if datetime.now() > notification['when'] and 'done' not in notification:
                     self.api.send_message(notification['whom'],
                                           properties.notify_string % (
-                                          notification['message'] or u'... блин, ты не указал о чем напоминать :('))
+                                              notification['message'] or u'... блин, ты не указал о чем напоминать :('))
                     self.db.set_done(notification['_id'])
                     notification['done'] = True
 
