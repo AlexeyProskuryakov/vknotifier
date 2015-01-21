@@ -94,6 +94,7 @@ class DateRetrieversTest(unittest.TestCase):
         assert time_retriever(u"в 23:60") == None
 
 
-
+if __name__ == '__main__':
+    unittest.main()
 
 
