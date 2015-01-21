@@ -88,8 +88,13 @@ class TalkHandler(Thread):
                     notification = recognise_notification_query(message['text'])
                     if notification:
                         notification = normalize_notification_type(notification)
-                        when_to_show = notification['when'] #когда должна быть
+                        when_to_show = notification['when']  # когда должна быть
                         notification['when'] = form_when_on_timestmap(notification['when'], message['timestamp'])
+                        log.debug('\nwhen to show: %s\nwhen notify: %s\ntimestamp: %s' % (
+                            when_to_show,
+                            notification['when'],
+                            datetime.fromtimestamp(message['timestamp']))
+                        )
                         notification['whom'] = user_id
                         talked_users[user_id] = notification
                         log.info('from user %s imply notification %s' % (user_id, notification))
