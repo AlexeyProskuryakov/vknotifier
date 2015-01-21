@@ -1,17 +1,18 @@
 import pymongo
 from datetime import datetime, timedelta
-from properties import mongo_address, mongo_db_name
 from core import types
 
 __author__ = '4ikist'
 
 
 class DataBaseHandler(object):
-    def __init__(self, host=None, port=None, address=mongo_address, db_name=mongo_db_name, truncate=False):
+    def __init__(self, host=None, port=None, address=None, db_name=None, truncate=False):
         if host and port:
             self.db = pymongo.MongoClient(host=host, port=port)[db_name]
         elif address:
             self.db = pymongo.MongoClient(host=address)[db_name]
+        else:
+            raise Exception('not database credentials included!')
 
         self.notifications = self.db['notifications']
         self.error_messages = self.db['error_messages']

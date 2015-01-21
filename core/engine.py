@@ -4,14 +4,14 @@ from threading import Thread
 from time import sleep
 
 from database import DataBaseHandler
-from api.vk import VK_API
+from api import get_api
 from after_retrievers import after_timedelta
 from date_time_retrievers import retrieve_datetime
 from text_retrievers import retrieve_notification_message, retrieve_type, retrieve_yes
 import properties
 from core import types
 
-api = VK_API()
+
 
 
 def recognise_notification_query(text):
@@ -57,10 +57,10 @@ def form_when_on_timestmap(when, timestamp):
 
 
 class TalkHandler(Thread):
-    def __init__(self):
+    def __init__(self, api_credentials, db_credentials):
         super(TalkHandler, self).__init__()
-        self.api = api
-        self.db = DataBaseHandler()
+        self.api = get_api(**api_credentials)
+        self.db = DataBaseHandler(**db_credentials)
 
     def run(self):
         self.loop()
@@ -101,10 +101,10 @@ def is_all_notified(notifications):
 
 
 class Notificator(Thread):
-    def __init__(self):
+    def __init__(self, api_credentials, db_credentials):
         super(Notificator, self).__init__()
-        self.api = api
-        self.db = DataBaseHandler()
+        self.api = get_api(**api_credentials)
+        self.db = DataBaseHandler(**db_credentials)
 
     def run(self):
         self.loop()
@@ -124,12 +124,6 @@ class Notificator(Thread):
                     break
 
                 sleep(1)
-
-
-if __name__ == '__main__':
-    # get_user_utc(10130611)
-    TalkHandler().start()
-    Notificator().start()
 
 
 

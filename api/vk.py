@@ -16,11 +16,13 @@ class APIException(Exception):
 
 
 class VK_API():
-    def __init__(self):
+    def __init__(self, login, pwd):
         self.session = Session()
         self.session.verify = certs_path
         self.base_url = 'https://api.vk.com/method/'
-        self.__get_access_token()
+        self.login = login
+        self.pwd = pwd
+        self.__get_access_token(login, pwd)
 
     def __form_lp_server_address(self, ts=None):
         if ts is None:
@@ -31,10 +33,10 @@ class VK_API():
             self.lp_server_params.get('key'),
             self.lp_server_params.get('ts') if ts is None else ts)
 
-    def __get_access_token(self):
+    def __get_access_token(self, login, pwd):
         if (not hasattr(self, 'access_expires') and not hasattr(self, 'last_auth')) or (
                     self.last_auth - datetime.now()).total_seconds() > self.access_expires:
-            auth = self.__auth__()
+            auth = self.__auth__(login,pwd)
             self.access_token = auth['access_token']
             self.user_id = auth['user_id']
             self.access_expires = auth['expires_in']
@@ -42,7 +44,7 @@ class VK_API():
 
         return self.access_token
 
-    def __auth__(self):
+    def __auth__(self, vk_login, vk_pass):
         log.info('authenticate')
         result = self.session.get('https://oauth.vk.com/authorize', params=vk_access_credentials)
         doc = html.document_fromstring(result.content)
@@ -73,7 +75,7 @@ class VK_API():
 
 
     def get(self, method_name, **kwargs):
-        params = dict({'access_token': self.__get_access_token()}, **kwargs)
+        params = dict({'access_token': self.__get_access_token(self.login, self.pwd)}, **kwargs)
         result = self.session.get('%s%s' % (self.base_url, method_name), params=params)
         result_object = json.loads(result.content)
         if 'error' in result_object:

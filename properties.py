@@ -27,21 +27,12 @@ logger.addHandler(ch)
 
 certs_path = os.path.join(module_path(), 'cacert.pem')
 
-vk_login = ''
-vk_pass = ''
-
 vk_access_credentials = {'client_id': '4252682',
                          'scope': 'friends,photos,audio,video,docs,notes,pages,status,offers,questions,wall,groups,messages,notifications',
                          'redirect_uri': 'https://oauth.vk.com/blank.html',
                          'display': 'mobile',
                          'v': '4.104',
                          'response_type': 'token'}
-
-mongo_address = ''
-mongo_db_name = 'vkntf'
-
-mongo_address_test = ''
-mongo_db_name_test = 'vkntf_test'
 
 not_recognised_message = u'''Я не понимаю что ты написал(а) :( Попробуй написать по-другому [%s]\n
 Пиши дату в свободной форме, к примеру: "4 января" или "4.01" или "в январе 4 числа", можешь уточнять год.
