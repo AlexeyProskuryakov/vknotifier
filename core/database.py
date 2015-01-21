@@ -45,16 +45,18 @@ class DataBaseHandler(object):
             )
 
     def _transform_date(self, element, td):
-        element['when'] = element['when'] - td
         element['declared_when'] = element['when']
+        element['when'] = element['when'] - td
         return element
 
     def get_to_notify(self):
         now = datetime.now()
         result = []
         for type, td in types.iteritems():
+            gte = now + td
+            lte = now + td + timedelta(seconds=time_step)
             crsr = self.notifications.find(
-                {'when': {'$gte': now + td, '$lte': now + td + timedelta(seconds=time_step)}, 'type': type})
+                {'when': {'$gte': gte, '$lte': lte}, 'type': type})
             result.extend([self._transform_date(el, td) for el in crsr])
         return result
 
