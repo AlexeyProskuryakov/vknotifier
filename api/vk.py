@@ -36,7 +36,7 @@ class VK_API():
     def __get_access_token(self, login, pwd):
         if (not hasattr(self, 'access_expires') and not hasattr(self, 'last_auth')) or (
                     self.last_auth - datetime.now()).total_seconds() > self.access_expires:
-            auth = self.__auth__(login,pwd)
+            auth = self.__auth__(login, pwd)
             self.access_token = auth['access_token']
             self.user_id = auth['user_id']
             self.access_expires = auth['expires_in']
@@ -112,7 +112,10 @@ class VK_API():
                     text = update[-1]
                     tstamp = update[4]
                     read_messages.append(message_id)
+                    log.info('timestamp inboxed message: %s' % datetime.fromtimestamp(tstamp))
                     yield {'from': from_id, 'text': text.lower(), 'timestamp': tstamp}
+                elif update[0] == 4 and update[2] in (3, 19, 51):
+                    log.info('timestamp outboxed message: %s' % datetime.fromtimestamp(update[4]))
 
             if read_messages:
                 self.mark_as_read(read_messages)
