@@ -7,27 +7,50 @@ from database import DataBaseHandler, time_step
 from api import get_api
 from after_retrievers import after_timedelta
 from date_time_retrievers import retrieve_datetime
-from text_retrievers import retrieve_notification_message, retrieve_type, retrieve_yes
+from text_retrievers import retrieve_notification_message, retrieve_type, retrieve_yes, retrieve_utc
 import properties
-from core import types
+from core import types, timezones
 
 
 log = properties.logger.getChild('engine')
 
 
-def recognise_notification_query(text):
+def get_user_timezone(user_id, api, db):
+    utc_by_user = db.get_utc(user=user_id)
+    if not utc_by_user:
+        result = api.get('users.get', **{'user_ids': user_id, 'fields': 'timezone,city,country'})
+        city = result[0].get('city')
+        if not city:
+            return None
+        utc_by_city = db.get_utc(city=city['id'])
+        if not utc_by_city:
+            utc = timezones.get_utc(city['title'])
+            if utc:
+                db.set_utc(utc=utc, user=user_id, city=city['id'])
+                return utc
+        return utc_by_city
+    return utc_by_user
+
+
+def recognise_notification_date_time(text, utc):
     date_time = retrieve_datetime(text)
-    if not date_time:
+    if date_time:
+        cur_utc = (datetime.now() - datetime.utcnow()).total_seconds()
+        date_time = date_time - timedelta(seconds=cur_utc) + timedelta(hours=utc)
+    else:
         after_dt = after_timedelta(text)
         if not after_dt:
             return None
         date_time = datetime.now() + after_dt
+
     type = retrieve_type(text)
     text = retrieve_notification_message(text)
     return {'when': date_time, 'type': type, 'message': text}
 
 
-def form_notification_confirmation(notification, when):
+def form_notification_confirmation(notification, utc):
+    cur_utc = (datetime.now() - datetime.utcnow()).total_seconds()
+    when = notification['when'] + timedelta(seconds=cur_utc) - timedelta(hours=utc)
     whens = []
     if notification['type'] == 1:
         whens.append(when)
@@ -50,13 +73,6 @@ def normalize_notification_type(notification):
     return notification
 
 
-def form_when_on_timestmap(when, timestamp):
-    shift = (datetime.now() - datetime.fromtimestamp(timestamp)).total_seconds()
-    if abs(shift) > 3600:
-        return when + timedelta(seconds=shift)
-    return when
-
-
 class TalkHandler(Thread):
     def __init__(self, api_credentials, db_credentials):
         super(TalkHandler, self).__init__()
@@ -66,43 +82,67 @@ class TalkHandler(Thread):
     def run(self):
         self.loop()
 
+    def state_notification_confirm(self, message, talked_users, user_id):
+        if retrieve_yes(message['text']):
+            log.info('user %s say yes' % user_id)
+            self.api.send_message(user_id, u':)')
+            self.db.will_notify(**talked_users.get(user_id).get('data'))
+        else:
+            log.info('user %s say not' % user_id)
+            self.api.send_message(user_id, properties.will_not_notify)
+            self.db.persist_error(user_id, message['text'], reject_confirm=True)
+        del talked_users[user_id]
+
+    def state_utc_recognise(self, message, talked_users, user_id):
+        utc = retrieve_utc(message['text'])
+        if not utc:
+            self.state_utc_not_recognised(talked_users[user_id]['data'], talked_users, user_id)
+            return
+        self.state_notification_estimate(talked_users[user_id]['data'], talked_users, user_id, utc)
+
+    def state_notification_estimate(self, message, talked_users, user_id, utc):
+        notification = recognise_notification_date_time(message['text'], utc)
+        if notification:
+            notification = normalize_notification_type(notification)
+            notification['whom'] = user_id
+
+            log.info('from user %s imply notification %s' % (user_id, notification))
+            self.api.send_message(user_id, form_notification_confirmation(notification, utc))
+
+            talked_users[user_id] = {'state': 'notification_confirmation', 'data': notification}
+        else:
+            log.info('from user %s notification not implied' % (user_id))
+            self.api.send_message(user_id, properties.not_recognised_message % message['text'])
+            self.db.persist_error(user_id, 'not recognise notification', **message)
+
+    def state_utc_not_recognised(self, message, talked_users, user_id):
+        self.db.persist_error(user_id, 'utc error', **message)
+        self.api.send_message(user_id, properties.can_not_recognise_utc)
+        talked_users[user_id] = {'state': 'utc_estimation', 'data': message}
+
+    def state_notification_recognise(self, message, talked_users, user_id):
+        utc = get_user_timezone(user_id, self.api, self.db)
+        if not utc:
+            self.state_utc_not_recognised(message, talked_users, user_id)
+            return
+
+        self.state_notification_estimate(message, talked_users, user_id, utc)
+
     def loop(self):
         talked_users = {}
         for message in self.api.get_messages():
             try:
                 user_id = message['from']
-                log.info('receive message: %s\nfrom %s' % (message['text'], user_id))
-                # wait confirmation of notification
+                log.info('receive message: "%s" from %s' % (message['text'], user_id))
+                # retrieve confirmation of notification or utc time shift
                 if user_id in talked_users:
-                    if retrieve_yes(message['text']):
-                        log.info('user %s say yes' % user_id)
-                        self.api.send_message(user_id, u':)')
-                        self.db.will_notify(**talked_users.get(user_id))
-                    else:
-                        log.info('user %s say not' % user_id)
-                        self.api.send_message(user_id, properties.will_not_notify)
-                        self.db.persist_error(user_id, message['text'], reject_confirm=True)
-
-                    del talked_users[user_id]
+                    state_flag = talked_users[user_id]
+                    if state_flag['state'] == 'notification_confirmation':
+                        self.state_notification_confirm(message, talked_users, user_id)
+                    elif state_flag['state'] == 'utc_estimation':
+                        self.state_utc_recognise(message, talked_users, user_id)
                 else:  # processing text for notification
-                    notification = recognise_notification_query(message['text'])
-                    if notification:
-                        notification = normalize_notification_type(notification)
-                        when_to_show = notification['when']  # когда должна быть
-                        notification['when'] = form_when_on_timestmap(notification['when'], message['timestamp'])
-                        log.debug('\nwhen to show: %s\nwhen notify: %s\ntimestamp: %s' % (
-                            when_to_show,
-                            notification['when'],
-                            datetime.fromtimestamp(message['timestamp']))
-                        )
-                        notification['whom'] = user_id
-                        talked_users[user_id] = notification
-                        log.info('from user %s imply notification %s' % (user_id, notification))
-                        self.api.send_message(user_id, form_notification_confirmation(notification, when_to_show))
-                    else:
-                        log.info('from user %s notification not implied' % (user_id))
-                        self.api.send_message(user_id, properties.not_recognised_message % message['text'])
-                        self.db.persist_error(user_id, message['text'])
+                    self.state_notification_recognise(message, talked_users, user_id)
             except Exception as e:
                 log.exception(e)
 

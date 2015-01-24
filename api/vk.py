@@ -5,6 +5,7 @@ from requests import Session
 from lxml import html
 
 from properties import *
+import properties
 
 __author__ = '4ikist'
 
@@ -76,7 +77,7 @@ class VK_API():
 
 
     def get(self, method_name, **kwargs):
-        params = dict({'access_token': self.__get_access_token(self.login, self.pwd)}, **kwargs)
+        params = dict({'access_token': self.__get_access_token(self.login, self.pwd), 'v':properties.vk_access_credentials['v']}, **kwargs)
         result = self.session.get('%s%s' % (self.base_url, method_name), params=params)
         result_object = json.loads(result.content)
         if 'error' in result_object:
@@ -105,6 +106,9 @@ class VK_API():
             else:
                 self.__form_lp_server_address(ts=result.get('ts'))
             read_messages = []
+            if 'updates' not in result:
+                log.warn("i have this result: %s"%result)
+                continue
             for update in result['updates']:
                 if update[0] == 4 and update[2] in (1, 17, 33, 49) and update[2] != 3:
                     message_id = update[1]
@@ -112,11 +116,7 @@ class VK_API():
                     text = update[-1]
                     tstamp = update[4]
                     read_messages.append(message_id)
-                    log.info('timestamp inboxed message: %s' % datetime.fromtimestamp(tstamp))
                     yield {'from': from_id, 'text': text.lower(), 'timestamp': tstamp}
-                elif update[0] == 4 and update[2] in (3, 19, 51):
-                    log.info('timestamp outboxed message: %s' % datetime.fromtimestamp(update[4]))
-
             if read_messages:
                 self.mark_as_read(read_messages)
 

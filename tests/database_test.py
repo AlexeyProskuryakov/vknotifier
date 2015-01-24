@@ -59,6 +59,19 @@ class DatabaseTest(unittest.TestCase):
         assert self.db.notifications.find_one({'message': 'third type'}).get('type') == 2
         assert self.db.notifications.find_one({'message': 'first type'}) is None
 
+    def test_utc(self):
+        self.db.set_utc(+3, 1)
+        self.db.set_utc(-1,2)
+        self.db.set_utc(-15,3, 1)
+        self.db.set_utc(-15,4, 1)
+
+        assert self.db.get_utc(user=1) == 3
+        assert self.db.get_utc(user=2) == -1
+        assert self.db.get_utc(user=3) == -15
+        assert self.db.get_utc(user=4) == -15
+        assert self.db.get_utc(city=1) == -15
+
+
 
 
 

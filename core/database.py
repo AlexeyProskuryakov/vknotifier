@@ -6,6 +6,7 @@ __author__ = '4ikist'
 
 time_step = 5
 
+
 class DataBaseHandler(object):
     def __init__(self, host=None, port=None, address=None, db_name=None, truncate=False):
         if host and port:
@@ -17,9 +18,13 @@ class DataBaseHandler(object):
 
         self.notifications = self.db['notifications']
         self.error_messages = self.db['error_messages']
+        self.timezones = self.db['timezones']
 
-        if len(self.error_messages.index_information())<=1:
-            self.error_messages.ensure_index([('user', pymongo.ASCENDING),('time', pymongo.ASCENDING)])
+        if len(self.timezones.index_information()) <= 1:
+            self.timezones.ensure_index([('user', pymongo.ASCENDING), ('city', pymongo.ASCENDING)])
+
+        if len(self.error_messages.index_information()) <= 1:
+            self.error_messages.ensure_index([('user', pymongo.ASCENDING), ('time', pymongo.ASCENDING)])
 
         if len(self.notifications.index_information()) <= 1:
             self.notifications.ensure_index(
@@ -28,8 +33,31 @@ class DataBaseHandler(object):
         if truncate:
             self.notifications.remove({}, multi=True)
 
+    def get_utc(self, user=None, city=None):
+        if user:
+            q = {'user': user}
+        elif city:
+            q = {'city': city}
+        else:
+            return
+        result = self.timezones.find_one(q)
+        return result['utc'] if result else None
+
+    def set_utc(self, utc, user, city=None):
+        found_user = self.timezones.find_one({'user': user})
+        if found_user:
+            self.timezones.update({'_id': found_user['_id']}, {'$set': {'utc': utc}})
+        else:
+            self.timezones.save({'user': user, 'utc': utc})
+
+        if city:
+            found_city = self.timezones.find_one({'city': city})
+            if not found_city:
+                self.timezones.save({'city': city, 'utc': utc})
+
+
     def persist_error(self, user, message, **kwargs):
-        to_save = {'user':user, 'message':message, 'time':datetime.now()}
+        to_save = {'user': user, 'message': message, 'time': datetime.utcnow()}
         to_save.update(kwargs)
         self.error_messages.save(to_save)
 
@@ -40,8 +68,8 @@ class DataBaseHandler(object):
             self.notifications.update({'_id': notification_id}, {'$set': {'type': notification_type - 1}})
         else:
             self.notifications.update({'_id': notification_id},
-                                   {'$unset': {'type': 1, 'when': 1, 'whom': 1, 'message': 1},
-                                    '$set': {'deleted': notification}}
+                                      {'$unset': {'type': 1, 'when': 1, 'whom': 1, 'message': 1},
+                                       '$set': {'deleted': notification}}
             )
 
     def _transform_date(self, element, td):
