@@ -59,12 +59,12 @@ class VK_API():
         form_url = doc.xpath('//form')[0].attrib.get('action')
         # process second page
         result = self.session.post(form_url, form_params)
-        doc = html.document_fromstring(result.content)
+
         # check if at bad place
-        bad_place_result = self.process_bad_place(doc,'http://vk.com', result.cookies)
-        if bad_place_result:
-            result = bad_place_result
-            doc = html.document_fromstring(result.content)
+        doc = self.process_bad_place(doc,'http://vk.com', result.cookies)
+        if not doc:
+            return self.__auth__(vk_login, vk_pass)
+
         # if already login
         if 'OAuth Blank' not in doc.xpath('//title')[0].text:
             submit_url = doc.xpath('//form')[0].attrib.get('action')
@@ -82,14 +82,15 @@ class VK_API():
         log.info('auth was successful')
         return access_token
 
-    def process_bad_place(self, doc, url, cookies):
+    def process_bad_place(self, result, url, cookies):
+        doc = html.document_fromstring(result.content)
         h4s = doc.xpath('//h4[@class="sub_header"]')
         if h4s:
             if h4s[0].text == u'Проверка безопасности':
                 submit_url_postfix = doc.xpath('//form')[0].attrib.get('action')
-                result = self.session.post("%s%s"%(url, submit_url_postfix), data={'code':self.login[1:-2]})
-                log.info('after processing bad place i have this result:\n%s'%result.content)
-                return result
+                self.session.post("%s%s"%(url, submit_url_postfix), data={'code':self.login[1:-2]})
+                return None
+        return doc
 
 
     def get(self, method_name, **kwargs):
