@@ -62,6 +62,7 @@ class VK_API():
         # if already login
         if 'OAuth Blank' not in doc.xpath('//title')[0].text:
             submit_url = doc.xpath('//form')[0].attrib.get('action')
+            log.info('will submiting to url: \n%s \nand have this page:\n%s'%(submit_url, result.content))
             result = self.session.post(submit_url, cookies=result.cookies)
 
         # retrieving access token from url
