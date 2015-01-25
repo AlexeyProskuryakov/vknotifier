@@ -61,14 +61,14 @@ class VK_API():
         result = self.session.post(form_url, form_params)
 
         # check if at bad place
-        doc = self.process_bad_place(doc,'http://vk.com', result.cookies)
+        doc = self.process_bad_place(result, 'http://vk.com', result.cookies)
         if not doc:
             return self.__auth__(vk_login, vk_pass)
 
         # if already login
         if 'OAuth Blank' not in doc.xpath('//title')[0].text:
             submit_url = doc.xpath('//form')[0].attrib.get('action')
-            log.info('will submiting to url: \n%s \nand have this page:\n%s'%(submit_url, result.content))
+            log.info('will submiting to url: \n%s \nand have this page:\n%s' % (submit_url, result.content))
             result = self.session.post(submit_url, cookies=result.cookies)
 
         # retrieving access token from url
@@ -88,13 +88,15 @@ class VK_API():
         if h4s:
             if h4s[0].text == u'Проверка безопасности':
                 submit_url_postfix = doc.xpath('//form')[0].attrib.get('action')
-                self.session.post("%s%s"%(url, submit_url_postfix), data={'code':self.login[1:-2]})
+                self.session.post("%s%s" % (url, submit_url_postfix), data={'code': self.login[1:-2]})
                 return None
         return doc
 
 
     def get(self, method_name, **kwargs):
-        params = dict({'access_token': self.__get_access_token(self.login, self.pwd), 'v':properties.vk_access_credentials['v']}, **kwargs)
+        params = dict(
+            {'access_token': self.__get_access_token(self.login, self.pwd), 'v': properties.vk_access_credentials['v']},
+            **kwargs)
         result = self.session.get('%s%s' % (self.base_url, method_name), params=params)
         result_object = json.loads(result.content)
         if 'error' in result_object:
@@ -124,7 +126,7 @@ class VK_API():
                 self.__form_lp_server_address(ts=result.get('ts'))
             read_messages = []
             if 'updates' not in result:
-                log.warn("i have this result: %s"%result)
+                log.warn("i have this result: %s" % result)
                 continue
             for update in result['updates']:
                 if update[0] == 4 and update[2] in (1, 17, 33, 49) and update[2] != 3:
