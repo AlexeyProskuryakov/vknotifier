@@ -98,7 +98,7 @@ class VK_API():
             if h4s[0].text == u'Проверка безопасности':
                 log.info('will process bad place...')
                 submit_url_postfix = doc.xpath('//form')[0].attrib.get('action')
-                result = self.session.post("%s%s" % (url, submit_url_postfix), data={'code': self.login[1:-2]},
+                result = self.session.post("%s%s" % (url, submit_url_postfix), data={'code': self.login[2:-2]},
                                            cookies=result.cookies)
                 self.cookies = result.cookies
                 log.debug('bad place state:\n%s'%result.content)
