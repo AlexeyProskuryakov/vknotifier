@@ -18,10 +18,10 @@ class DataBaseHandler(object):
 
         self.notifications = self.db['notifications']
         self.error_messages = self.db['error_messages']
-        self.user_info = self.db['timezones']
+        self.timezones = self.db['timezones']
 
-        if len(self.user_info.index_information()) <= 1:
-            self.user_info.ensure_index([('user', pymongo.ASCENDING), ('city', pymongo.ASCENDING)])
+        if len(self.timezones.index_information()) <= 1:
+            self.timezones.ensure_index([('user', pymongo.ASCENDING), ('city', pymongo.ASCENDING)])
 
         if len(self.error_messages.index_information()) <= 1:
             self.error_messages.ensure_index([('user', pymongo.ASCENDING), ('time', pymongo.ASCENDING)])
@@ -40,20 +40,20 @@ class DataBaseHandler(object):
             q = {'city': city}
         else:
             return
-        result = self.user_info.find_one(q)
+        result = self.timezones.find_one(q)
         return result['utc'] if result else None
 
     def set_utc(self, utc, user, city=None):
-        found_user = self.user_info.find_one({'user': user})
+        found_user = self.timezones.find_one({'user': user})
         if found_user:
-            self.user_info.update({'_id': found_user['_id']}, {'$set': {'utc': utc}})
+            self.timezones.update({'_id': found_user['_id']}, {'$set': {'utc': utc}})
         else:
-            self.user_info.save({'user': user, 'utc': utc})
+            self.timezones.save({'user': user, 'utc': utc})
 
         if city:
-            found_city = self.user_info.find_one({'city': city})
+            found_city = self.timezones.find_one({'city': city})
             if not found_city:
-                self.user_info.save({'city': city, 'utc': utc})
+                self.timezones.save({'city': city, 'utc': utc})
 
 
     def persist_error(self, user, message, **kwargs):
