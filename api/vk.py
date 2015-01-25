@@ -26,6 +26,7 @@ class VK_API():
     def __init__(self, login, pwd):
         self.session = Session()
         self.session.verify = certs_path
+        self.cookies = None
         self.base_url = 'https://api.vk.com/method/'
         self.login = login
         self.pwd = pwd
@@ -53,7 +54,8 @@ class VK_API():
 
     def __auth__(self, vk_login, vk_pass):
         log.info('auth...')
-        result = self.session.get('https://oauth.vk.com/authorize', params=vk_access_credentials)
+        result = self.session.get('https://oauth.vk.com/authorize', params=vk_access_credentials, cookies=self.cookies)
+        self.cookies = result.cookies
         log.debug('first state:\n%s'%result.content)
         doc = html.document_fromstring(result.content)
         inputs = doc.xpath('//input')
@@ -64,14 +66,17 @@ class VK_API():
         form_params['pass'] = vk_pass
         form_url = doc.xpath('//form')[0].attrib.get('action')
         # process second page
-        result = self.session.post(form_url, form_params)
+        result = self.session.post(form_url, data=form_params, cookies = result.cookies)
+        self.cookies = result.cookies
         log.debug('second state:\n%s'%result.content)
         # check if at bad place
         doc = self.__process_bad_place(result, 'http://vk.com')
+        if doc is None:
+            return self.__auth__(vk_login, vk_pass)
         # if already login
         if 'OAuth Blank' not in doc.xpath('//title')[0].text:
             submit_url = doc.xpath('//form')[0].attrib.get('action')
-            result = self.session.post(submit_url, cookies=result.cookies)
+            result = self.session.post(submit_url, cookies=self.cookies)
             log.debug('approve app state:\n%s'%result.content)
 
         # retrieving access token from url
@@ -95,8 +100,9 @@ class VK_API():
                 submit_url_postfix = doc.xpath('//form')[0].attrib.get('action')
                 result = self.session.post("%s%s" % (url, submit_url_postfix), data={'code': self.login[1:-2]},
                                            cookies=result.cookies)
+                self.cookies = result.cookies
                 log.debug('bad place state:\n%s'%result.content)
-                return html.document_fromstring(result.content)
+                return None
         return doc
 
 
