@@ -17,6 +17,11 @@ class APIException(Exception):
     pass
 
 
+def flush_to_file(fn, content):
+    with open(fn, 'w+') as f:
+        f.write(content)
+
+
 class VK_API():
     def __init__(self, login, pwd):
         self.session = Session()
@@ -49,6 +54,7 @@ class VK_API():
     def __auth__(self, vk_login, vk_pass):
         log.info('auth...')
         result = self.session.get('https://oauth.vk.com/authorize', params=vk_access_credentials)
+        log.debug('first state:\n%s'%result.content)
         doc = html.document_fromstring(result.content)
         inputs = doc.xpath('//input')
         form_params = {}
@@ -59,17 +65,14 @@ class VK_API():
         form_url = doc.xpath('//form')[0].attrib.get('action')
         # process second page
         result = self.session.post(form_url, form_params)
-
+        log.debug('second state:\n%s'%result.content)
         # check if at bad place
-        doc = self.process_bad_place(result, 'http://vk.com', result.cookies)
-        if not doc:
-            return self.__auth__(vk_login, vk_pass)
-
+        doc = self.__process_bad_place(result, 'http://vk.com')
         # if already login
         if 'OAuth Blank' not in doc.xpath('//title')[0].text:
             submit_url = doc.xpath('//form')[0].attrib.get('action')
-            log.info('will submiting to url: \n%s \nand have this page:\n%s' % (submit_url, result.content))
             result = self.session.post(submit_url, cookies=result.cookies)
+            log.debug('approve app state:\n%s'%result.content)
 
         # retrieving access token from url
         parsed_url = urlparse.urlparse(result.url)
@@ -78,18 +81,22 @@ class VK_API():
             raise APIException(dict([el.split('=') for el in parsed_url.query.split('&')]))
 
         fragment = parsed_url.fragment
+        log.debug('parsed url fragment:\n%s'%fragment)
         access_token = dict([el.split('=') for el in fragment.split('&')])
         log.info('auth was successful')
         return access_token
 
-    def process_bad_place(self, result, url, cookies):
+    def __process_bad_place(self, result, url):
         doc = html.document_fromstring(result.content)
         h4s = doc.xpath('//h4[@class="sub_header"]')
         if h4s:
             if h4s[0].text == u'Проверка безопасности':
+                log.info('will process bad place...')
                 submit_url_postfix = doc.xpath('//form')[0].attrib.get('action')
-                self.session.post("%s%s" % (url, submit_url_postfix), data={'code': self.login[1:-2]})
-                return None
+                result = self.session.post("%s%s" % (url, submit_url_postfix), data={'code': self.login[1:-2]},
+                                           cookies=result.cookies)
+                log.debug('bad place state:\n%s'%result.content)
+                return html.document_fromstring(result.content)
         return doc
 
 
