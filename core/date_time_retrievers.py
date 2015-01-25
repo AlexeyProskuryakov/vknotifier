@@ -36,13 +36,13 @@ def normal_date(text):
 def without_year_date(text):
     found_date = re.findall("\d{1,2}\.\d{1,2}", text, re.IGNORECASE)
     if found_date:
-        return datetime.strptime('%s.%s' % (found_date[0], datetime.now().year), '%d.%m.%Y').date()
+        return datetime.strptime('%s.%s' % (found_date[0], datetime.utcnow().year), '%d.%m.%Y').date()
 
 
 def month_day_number_date(text):
     matched = re.findall(u"(\d{1,2})\sчисла\s*(этого|текущего|следую?щего)?(\s+месяца)?", text, re.IGNORECASE)
     if matched:
-        now = datetime.now()
+        now = datetime.utcnow()
         groups = matched[0]
         if u'след' in groups[1]:
             month = now.month + 1
@@ -58,7 +58,7 @@ def at_weekday_date(text):
         u'во?\s(это?т?у?|следующ(ий|ее|ую))?\s?(понедельник|вторник|среду|четверг|пятницу|субботу|воскресенье)',
         text, re.IGNORECASE)
     if matched:
-        now = datetime.now()
+        now = datetime.utcnow()
         now_wd = now.weekday()
         groups = matched[0]
         next = False
@@ -79,7 +79,7 @@ def vocable_month_date(text):
         text,
         re.IGNORECASE)
     if matched:
-        now = datetime.now()
+        now = datetime.utcnow()
         groups = matched[0]
         year = int(groups[3]) if groups[3] else now.year
         month = _get_month_number(groups[1])
@@ -93,7 +93,7 @@ def vocable_month2_date(text):
         text,
         re.IGNORECASE)
     if matched:
-        now = datetime.now()
+        now = datetime.utcnow()
         groups = matched[0]
         month = _get_month_number(groups[0])
         day = int(groups[2])
@@ -101,10 +101,21 @@ def vocable_month2_date(text):
         return datetime(year, month, day).date()
 
 
+def month_day_number(text):
+    matched = re.findall(u"(\d{1,2})\s(числа)", text, re.IGNORECASE)
+    if matched:
+        now = datetime.utcnow()
+        groups = matched[0]
+        month_day_found = int(groups[0])
+        month_day = now.day
+        if month_day_found > month_day:
+            return datetime(now.year, now.month, month_day_found).date()
+
+
 def tomorrow_date(text):
     matched = re.findall(u"(((после)?завтра)|сегодня)", text, re.IGNORECASE)
     if matched:
-        now = datetime.now()
+        now = datetime.utcnow()
         groups = matched[0]
         if u"сегодня" in groups[0]:
             return now.date()
@@ -122,7 +133,8 @@ date_retrievers = {
     4: month_day_number_date,
     5: tomorrow_date,
     6: normal_date,
-    7: without_year_date
+    7: without_year_date,
+    8: month_day_number
 }
 
 
@@ -137,6 +149,11 @@ def time_retriever(text):
 
 
 def retrieve_datetime(text):
+    """
+    Retrieving from text
+    :param text:
+    :return:
+    """
     for i, date_retriever in date_retrievers.iteritems():
         date = date_retriever(text)
         if date:
@@ -144,5 +161,5 @@ def retrieve_datetime(text):
             return datetime.combine(date, time)
     today_time = time_retriever(text)
     if today_time:
-        return datetime.combine(datetime.now().date(), today_time)
+        return datetime.combine(datetime.utcutcnow().date(), today_time)
     return None

@@ -32,16 +32,21 @@ def get_user_timezone(user_id, api, db):
     return utc_by_user
 
 
-def recognise_notification_date_time(text, utc):
+def recognise_notification_date_time(text, user_utc):
+    """
+    recognising date time from text and returning this date time in utc 0
+    :param text: some text containing datetime or after timedelta
+    :param user_utc: utc of user which saying this
+    :return:
+    """
     date_time = retrieve_datetime(text)
-    if date_time:
-        cur_utc = (datetime.now() - datetime.utcnow()).total_seconds()
-        date_time = date_time - timedelta(seconds=cur_utc) + timedelta(hours=utc)
-    else:
+    if not date_time:
         after_dt = after_timedelta(text)
         if not after_dt:
             return None
-        date_time = datetime.now() + after_dt
+        date_time = datetime.utcnow() + after_dt
+    else:
+        date_time -= timedelta(hours=user_utc)
 
     type = retrieve_type(text)
     text = retrieve_notification_message(text)
@@ -49,8 +54,7 @@ def recognise_notification_date_time(text, utc):
 
 
 def form_notification_confirmation(notification, utc):
-    cur_utc = (datetime.now() - datetime.utcnow()).total_seconds()
-    when = notification['when'] + timedelta(seconds=cur_utc) - timedelta(hours=utc)
+    when = notification['when'] + timedelta(hours=utc)
     whens = []
     if notification['type'] == 1:
         whens.append(when)
@@ -125,7 +129,6 @@ class TalkHandler(Thread):
         if not utc:
             self.state_utc_not_recognised(message, talked_users, user_id)
             return
-
         self.state_notification_estimate(message, talked_users, user_id, utc)
 
     def loop(self):
