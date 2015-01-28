@@ -1,11 +1,13 @@
 # coding:utf-8
 import ConfigParser
+import sys
 
 __author__ = '4ikist'
 
 from core.engine import NotificatonIniter, TalkHandler
 
-def load_config(prop_file='properties.cfg'):
+
+def load_config(prop_file):
     cfg = ConfigParser.RawConfigParser()
     cfg.read(prop_file)
 
@@ -20,7 +22,8 @@ def load_config(prop_file='properties.cfg'):
     print 'db:', db_credentials
     return api_credentials, db_credentials
 
+
 if __name__ == '__main__':
-    api_credentials, db_credentials = load_config()
+    api_credentials, db_credentials = load_config(sys.argv[1] if len(sys.argv) > 1 else 'properties.cfg')
     TalkHandler(api_credentials, db_credentials).start()
     NotificatonIniter(api_credentials, db_credentials).start()

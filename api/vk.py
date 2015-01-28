@@ -23,14 +23,15 @@ def flush_to_file(fn, content):
 
 
 class VK_API():
-    def __init__(self, login, pwd):
+    def __init__(self, login, pwd, test_mode=False):
         self.session = Session()
         self.session.verify = certs_path
         self.cookies = None
         self.base_url = 'https://api.vk.com/method/'
         self.login = login
         self.pwd = pwd
-        self.__get_access_token(login, pwd)
+        if not test_mode:
+            self.__get_access_token(login, pwd)
 
     def __form_lp_server_address(self, ts=None):
         if ts is None:
@@ -56,7 +57,7 @@ class VK_API():
         log.info('auth...')
         result = self.session.get('https://oauth.vk.com/authorize', params=vk_access_credentials, cookies=self.cookies)
         self.cookies = result.cookies
-        log.debug('first state:\n%s'%result.content)
+        log.debug('first state:\n%s' % result.content)
         doc = html.document_fromstring(result.content)
         inputs = doc.xpath('//input')
         form_params = {}
@@ -66,9 +67,9 @@ class VK_API():
         form_params['pass'] = vk_pass
         form_url = doc.xpath('//form')[0].attrib.get('action')
         # process second page
-        result = self.session.post(form_url, data=form_params, cookies = result.cookies)
+        result = self.session.post(form_url, data=form_params, cookies=result.cookies)
         self.cookies = result.cookies
-        log.debug('second state:\n%s'%result.content)
+        log.debug('second state:\n%s' % result.content)
         # check if at bad place
         doc = self.__process_bad_place(result, 'http://vk.com')
         if doc is None:
@@ -77,7 +78,7 @@ class VK_API():
         if 'OAuth Blank' not in doc.xpath('//title')[0].text:
             submit_url = doc.xpath('//form')[0].attrib.get('action')
             result = self.session.post(submit_url, cookies=self.cookies)
-            log.debug('approve app state:\n%s'%result.content)
+            log.debug('approve app state:\n%s' % result.content)
 
         # retrieving access token from url
         parsed_url = urlparse.urlparse(result.url)
@@ -86,7 +87,7 @@ class VK_API():
             raise APIException(dict([el.split('=') for el in parsed_url.query.split('&')]))
 
         fragment = parsed_url.fragment
-        log.debug('parsed url fragment:\n%s'%fragment)
+        log.debug('parsed url fragment:\n%s' % fragment)
         access_token = dict([el.split('=') for el in fragment.split('&')])
         log.info('auth was successful')
         return access_token
@@ -101,7 +102,7 @@ class VK_API():
                 result = self.session.post("%s%s" % (url, submit_url_postfix), data={'code': self.login[2:-2]},
                                            cookies=result.cookies)
                 self.cookies = result.cookies
-                log.debug('bad place state:\n%s'%result.content)
+                log.debug('bad place state:\n%s' % result.content)
                 return None
         return doc
 

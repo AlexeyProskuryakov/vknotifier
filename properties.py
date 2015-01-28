@@ -38,6 +38,6 @@ vk_access_credentials = {'client_id': '4252682',
 
 not_recognised_message = u'Я не понимаю что ты написал(а) :( Попробуй написать по-другому [%s]\n' #with message text
 will_not_notify = u'Хорошо, не буду напоминать, но ты всегда можешь меня об этом попросить:)'
-will_notify = u"Я напомню тебе про: %s. В следующие дату(ы) и время: \n%s\n Согласен(на)? " #with text, date, and notification type
-notify_string = u"Напоминаю тебе: %s" #with notification text
+will_notify = u"Я напомню %s про: %s. В следующ%s дат%s и время: \n%s\nСоглас%s? " #with text, date, and notification type
+notify_string = u"Напоминаю тебе: %s \n(%s просил)" #with notification text
 can_not_recognise_utc = u"Не могу распознать твое UTC, напиши мне его"

@@ -19,6 +19,10 @@ class DataBaseHandler(object):
         self.notifications = self.db['notifications']
         self.error_messages = self.db['error_messages']
         self.timezones = self.db['timezones']
+        self.users = self.db['users']
+
+        if len(self.users.index_information()) <= 1:
+            self.users.ensure_index([('id', pymongo.ASCENDING)])
 
         if len(self.timezones.index_information()) <= 1:
             self.timezones.ensure_index([('user', pymongo.ASCENDING), ('city', pymongo.ASCENDING)])
@@ -28,10 +32,14 @@ class DataBaseHandler(object):
 
         if len(self.notifications.index_information()) <= 1:
             self.notifications.ensure_index(
-                [('when', pymongo.ASCENDING), ('whom', pymongo.ASCENDING), ('type', pymongo.ASCENDING)])
+                [('when', pymongo.ASCENDING), ('whom', pymongo.ASCENDING), ('type', pymongo.ASCENDING),
+                 ('by', pymongo.ASCENDING)])
 
         if truncate:
-            self.notifications.remove({}, multi=True)
+            self.notifications.remove(multi=True)
+            self.error_messages.remove(multi=True)
+            self.users.remove(multi=True)
+
 
     def get_utc(self, user=None, city=None):
         if user:
@@ -56,6 +64,20 @@ class DataBaseHandler(object):
                 self.timezones.save({'city': city, 'utc': utc})
 
 
+    def get_user(self, user_id):
+        return self.users.find_one({'id': user_id})
+
+    def set_user(self, user_data):
+        def save_user(user):
+            if not self.get_user(user['id']):
+                self.users.save(user)
+
+        if isinstance(user_data, list):
+            for user in user_data:
+                save_user(user)
+        else:
+            save_user(user_data)
+
     def persist_error(self, user, message, **kwargs):
         to_save = {'user': user, 'message': message, 'time': datetime.utcnow()}
         to_save.update(kwargs)
@@ -77,8 +99,13 @@ class DataBaseHandler(object):
         element['when'] = element['when'] - td
         return element
 
-    def get_to_notify(self):
-        now = datetime.utcnow()
+    def get_to_notify(self, near_date=None):
+        """
+        forming notifications objects
+        :param near_date: some datetime
+        :return:
+        """
+        now = near_date or datetime.utcnow()
         result = []
         for type, td in types.iteritems():
             gte = now + td
@@ -88,8 +115,8 @@ class DataBaseHandler(object):
             result.extend([self._transform_date(el, td) for el in crsr])
         return result
 
-    def will_notify(self, when, whom, type, message):
-        element = {'when': when, 'whom': whom, 'type': type, 'message': message}
+    def will_notify(self, when, whom, type, message, by):
+        element = {'when': when, 'whom': whom, 'type': type, 'message': message, 'by': by}
         result = self.notifications.save(element)
         return result
 

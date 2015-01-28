@@ -11,6 +11,18 @@ from core.after_retrievers import after_timedelta
 from core.engine import recognise_notification_date_time
 
 
+def get_near_weekday(week_day_number, next=False):
+    now = datetime.datetime.utcnow()
+    now_week_day = now.weekday()
+    if now_week_day > week_day_number:
+        day_shift = 7 - now_week_day + week_day_number
+    else:
+        day_shift = week_day_number - now_week_day
+    if next:
+        day_shift += 7
+    return (now + datetime.timedelta(days=day_shift)).date()
+
+
 class DateRetrieversTest(unittest.TestCase):
     # today is 15.01.2015
     def test_month_day_number(self):
@@ -28,17 +40,6 @@ class DateRetrieversTest(unittest.TestCase):
         assert without_year_date(u'12.12') == datetime.datetime(2015, 12, 12).date()
 
     def test_at_week_day(self):
-        def get_near_weekday(week_day_number, next=False):
-            now = datetime.datetime.utcnow()
-            now_week_day = now.weekday()
-            if now_week_day > week_day_number:
-                day_shift = 7 - now_week_day + week_day_number
-            else:
-                day_shift = week_day_number - now_week_day
-            if next:
-                day_shift += 7
-            return (now + datetime.timedelta(days=day_shift)).date()
-
         assert at_weekday_date(u'в этот понедельник') == get_near_weekday(0)
         assert at_weekday_date(u'в понедельник') == get_near_weekday(0)
         assert at_weekday_date(u'во вторник') == get_near_weekday(1)
@@ -113,9 +114,12 @@ class DateRetrieversTest(unittest.TestCase):
         assert month_day_number(u'%s числа' % (now.day - 1)) == None
 
     def test_all(self):
-        assert recognise_notification_date_time(u"31.01.2015 в 12:30", 3)['when'] == datetime.datetime(2015, 1, 31, 12, 30) - datetime.timedelta(hours=3)
-        assert recognise_notification_date_time(u"31 числа в 15:12", 4)['when'] == datetime.datetime(2015, 1, 31, 15, 12) - datetime.timedelta(hours=4)
-
+        assert recognise_notification_date_time(u"31.01.2015 в 12:30", 3)['when'] == datetime.datetime(2015, 1, 31, 12,
+                                                                                                       30) - datetime.timedelta(
+            hours=3)
+        assert recognise_notification_date_time(u"31 числа в 15:12", 4)['when'] == datetime.datetime(2015, 1, 31, 15,
+                                                                                                     12) - datetime.timedelta(
+            hours=4)
 
 
 if __name__ == '__main__':
