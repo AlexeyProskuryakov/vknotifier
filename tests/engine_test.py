@@ -516,8 +516,6 @@ class TestEngine(unittest.TestCase):
             result = self.db.get_to_notify(
                 notification['time'] - timedelta(hours=self.db.get_utc(notification['by'])) - timedelta(seconds=2))
 
-            self.assertEqual(len(result),1, 'result has no one len')
-
             notificator = Notificator(self.api, self.db, result,
                                       when_notify=notification['time'] + timedelta(seconds=1))
             notificator.start()
@@ -611,3 +609,24 @@ class TestEngine(unittest.TestCase):
 
         self.check_notification_create(scenario)
         self.check_notification_send(scenario)
+
+    def test_not_implied(self):
+        scenario = {
+            'user_messages': [
+                {'from': 2,
+                 'messages': [
+                     u'Ни о чем не напоминай'
+                 ]},
+            ],
+
+            'system_messages': [
+                {'for': 2,
+                 'messages': [
+                     properties.not_recognised_message % u'ни о чем не напоминай'
+                 ]},
+            ],
+
+            'notifications': []
+        }
+
+        self.check_notification_create(scenario)

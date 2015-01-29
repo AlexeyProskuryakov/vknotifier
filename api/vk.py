@@ -57,7 +57,7 @@ class VK_API():
         log.info('auth...')
         result = self.session.get('https://oauth.vk.com/authorize', params=vk_access_credentials, cookies=self.cookies)
         self.cookies = result.cookies
-        log.debug('first state:\n%s' % result.content)
+        # log.debug('first state:\n%s' % result.content)
         doc = html.document_fromstring(result.content)
         inputs = doc.xpath('//input')
         form_params = {}
@@ -69,7 +69,7 @@ class VK_API():
         # process second page
         result = self.session.post(form_url, data=form_params, cookies=result.cookies)
         self.cookies = result.cookies
-        log.debug('second state:\n%s' % result.content)
+        # log.debug('second state:\n%s' % result.content)
         # check if at bad place
         doc = self.__process_bad_place(result, 'http://vk.com')
         if doc is None:
@@ -78,7 +78,7 @@ class VK_API():
         if 'OAuth Blank' not in doc.xpath('//title')[0].text:
             submit_url = doc.xpath('//form')[0].attrib.get('action')
             result = self.session.post(submit_url, cookies=self.cookies)
-            log.debug('approve app state:\n%s' % result.content)
+            # log.debug('approve app state:\n%s' % result.content)
 
         # retrieving access token from url
         parsed_url = urlparse.urlparse(result.url)
