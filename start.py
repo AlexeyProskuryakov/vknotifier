@@ -4,7 +4,7 @@ import sys
 
 __author__ = '4ikist'
 
-from core.engine import NotificatonIniter, TalkHandler
+from core.engine import NotificatonIniter, TalkHandler, VKEventHandler
 
 
 def load_config(prop_file):
@@ -27,3 +27,4 @@ if __name__ == '__main__':
     api_credentials, db_credentials = load_config(sys.argv[1] if len(sys.argv) > 1 else 'properties.cfg')
     TalkHandler(api_credentials, db_credentials).start()
     NotificatonIniter(api_credentials, db_credentials).start()
+    VKEventHandler(api_credentials, refresh_time=3600*3).start()

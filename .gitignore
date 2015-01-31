@@ -3,3 +3,4 @@
 *.log
 #*properties.cfg
 *properties_server.cfg
+*properties_develop.cfg.cfg

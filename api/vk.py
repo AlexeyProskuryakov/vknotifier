@@ -123,17 +123,25 @@ class VK_API():
         return result_object['response']
 
     def mark_as_read(self, messages):
-        messages_str = ','.join([str(m) for m in messages])
-        result = self.get('messages.markAsRead', **{'message_ids': messages_str})
-        if result != 1:
-            log.error('can not mark as read messages %s' % messages_str)
+        try:
+            messages_str = ','.join([str(m) for m in messages])
+            result = self.get('messages.markAsRead', **{'message_ids': messages_str})
+            if result != 1:
+                log.error('can not mark as read messages %s' % messages_str)
+        except Exception as e:
+            log.exception(e)
 
     def get_messages(self):
         self.__form_lp_server_address()
         log.info('will retrieve messages')
         while True:
-            result = self.session.get(self.lp_server_connection)
-            result = json.loads(result.content)
+            try:
+                result = self.session.get(self.lp_server_connection)
+                result = json.loads(result.content)
+            except Exception as e:
+                log.warn('some exception when sending and processing result from lp server continuing...')
+                log.exception(e)
+                continue
             if result.get('failed') == 2:
                 self.__form_lp_server_address()
             else:
@@ -154,18 +162,21 @@ class VK_API():
                 self.mark_as_read(read_messages)
 
     def send_message(self, user_id, text):
-        params = {'user_id': user_id, 'message': text}
-        result = self.get('messages.send', **params)
-        return result
+        try:
+            params = {'user_id': user_id, 'message': text}
+            result = self.get('messages.send', **params)
+            return result
+        except Exception as e:
+            log.exception(e)
 
     def add_followers_to_friends(self):
         params = {'count': 100, 'filters': 'followers'}
         result = self.get('notifications.get', **params)
         followers = []
-        for follower_meta in result['items'][1:]:
+        for follower_meta in result['items']:
             if follower_meta['type'] == 'follow':
-                for follower_id in follower_meta['feedback']:
-                    followers.append(follower_id['owner_id'])
+                for follower_id in follower_meta['feedback']['items']:
+                    followers.append(follower_id['from_id'])
         for el in followers:
             result = self.get('friends.add', **{'user_id': el})
             if result != 2:

@@ -318,6 +318,8 @@ class Notificator(Thread):
         self.notifications = notifications
         self.by_users = {}
         self.now = when_notify
+        log.info('will notify: \n%s' % '\n'.join(
+            ['for: %s at: %s : %s' % (n['whom'], n['when'], n['message']) for n in notifications]))
 
     def notify(self, whom, by, text):
         if whom == by:
@@ -351,3 +353,19 @@ class Notificator(Thread):
             sleep(1)
             if is_all_notified(self.notifications):
                 break
+
+class VKEventHandler(Thread):
+    def __init__(self, api_credentials, refresh_time=3600):
+        super(VKEventHandler, self).__init__()
+        self.api = get_api(**api_credentials)
+        self.refresh_time = refresh_time
+        log.info('vk event handler started')
+
+    def run(self):
+        while 1:
+            self.api.add_followers_to_friends()
+            sleep(self.refresh_time)
+
+
+
+
