@@ -1,6 +1,7 @@
 # coding=utf-8
 from datetime import datetime
 import json
+from time import sleep
 import urlparse
 from requests import Session
 from lxml import html
@@ -137,10 +138,16 @@ class VK_API():
         while True:
             try:
                 result = self.session.get(self.lp_server_connection)
-                result = json.loads(result.content)
+                try:
+                    result = json.loads(result.content)
+                except ValueError as e:
+                    log.warn('exception at decoded result from lp server:\n%s\n%s' % (result.content, result.status))
+                    log.exception(e)
+                    raise e
             except Exception as e:
                 log.warn('some exception when sending and processing result from lp server continuing...')
                 log.exception(e)
+                sleep(5)
                 continue
             if result.get('failed') == 2:
                 self.__form_lp_server_address()
