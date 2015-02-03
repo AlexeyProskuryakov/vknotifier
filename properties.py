@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 
+from core.web_logger import WebHandler
 __author__ = '4ikist'
 
 
@@ -17,13 +18,19 @@ def module_path():
 log_file = os.path.join(module_path(), 'result.log')
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
+
 fh = logging.FileHandler(log_file)
 ch = logging.StreamHandler()
+wh = WebHandler()
+
 formatter = logging.Formatter('%(asctime)s[%(levelname)s] %(name)s : %(message)s')
 fh.setFormatter(formatter)
 ch.setFormatter(formatter)
+wh.setFormatter(formatter)
+
 logger.addHandler(fh)
 logger.addHandler(ch)
+logger.addHandler(wh)
 
 logging.getLogger('requests.packages.urllib3.connectionpool').propagate = False
 
