@@ -1,6 +1,6 @@
 .idea
 *.pyc
 *.log
-#*properties.cfg
+*properties.cfg
 *properties_server.cfg
 *properties_develop.cfg.cfg
